@@ -1,0 +1,321 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 130619a387ef4c858bf50bb1d76cdbb4
+      name: Templates/Applications
+  templates:
+    - uuid: 2e3efff9d4a3498e9cba5d6ed3e4b4e6
+      template: BMS Multi Probe by HTTP
+      name: BMS Multi Probe by HTTP
+      description: |
+        Read-only monitoring template for BMS Multi Probe Android API v1.
+        It uses one HTTP-agent JSON request and dependent items. No BMS command is sent.
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 0d42772d0e2949b0a59da3b8cbfca07c
+          name: BMS Multi Probe: Raw snapshot
+          type: HTTP_AGENT
+          key: bms.multi.snapshot
+          delay: 5s
+          history: 7d
+          value_type: TEXT
+          trends: '0'
+          url: 'http://{$BMS.MULTI.PROBE.HOST}:{$BMS.MULTI.PROBE.PORT}/api/v1/multi/snapshot'
+          request_method: GET
+          output_format: JSON
+          timeout: 3s
+          status_codes: '200'
+      discovery_rules:
+        - uuid: b8d7d0cf7a784ba5a78106286bd55f52
+          name: BMS session discovery
+          type: DEPENDENT
+          key: bms.multi.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: 09c4ea5e026d4820bd9d3dc9c9c6f1a5
+              name: 'BMS {#BMS.NAME}: SOC'
+              type: DEPENDENT
+              key: 'bms.soc[{#BMS.INDEX}]'
+              delay: '0'
+              history: 30d
+              value_type: FLOAT
+              units: '%'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.sessions[{#BMS.INDEX}].socPercent'
+              master_item:
+                key: bms.multi.snapshot
+            - uuid: a7947480ec9d4e5f977c951ee8f3de71
+              name: 'BMS {#BMS.NAME}: pack voltage'
+              type: DEPENDENT
+              key: 'bms.pack.voltage[{#BMS.INDEX}]'
+              delay: '0'
+              history: 30d
+              value_type: FLOAT
+              units: V
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.sessions[{#BMS.INDEX}].packVoltageV'
+              master_item:
+                key: bms.multi.snapshot
+            - uuid: ca9bd727768f474b9f8c7db20fe96f88
+              name: 'BMS {#BMS.NAME}: current'
+              type: DEPENDENT
+              key: 'bms.current[{#BMS.INDEX}]'
+              delay: '0'
+              history: 30d
+              value_type: FLOAT
+              units: A
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.sessions[{#BMS.INDEX}].currentA'
+              master_item:
+                key: bms.multi.snapshot
+            - uuid: 2d24a7d6edc940af8e11451a01b44d1c
+              name: 'BMS {#BMS.NAME}: power'
+              type: DEPENDENT
+              key: 'bms.power[{#BMS.INDEX}]'
+              delay: '0'
+              history: 30d
+              value_type: FLOAT
+              units: W
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.sessions[{#BMS.INDEX}].powerW'
+              master_item:
+                key: bms.multi.snapshot
+            - uuid: 8533c95849b949898efbe933268aaa2f
+              name: 'BMS {#BMS.NAME}: internal temperature'
+              type: DEPENDENT
+              key: 'bms.temperature[{#BMS.INDEX}]'
+              delay: '0'
+              history: 30d
+              value_type: FLOAT
+              units: C
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.sessions[{#BMS.INDEX}].temperatureC'
+              master_item:
+                key: bms.multi.snapshot
+            - uuid: 9043fc7fc7e6470dbbd9933d36ab86dc
+              name: 'BMS {#BMS.NAME}: telemetry age'
+              type: DEPENDENT
+              key: 'bms.sample.age[{#BMS.INDEX}]'
+              delay: '0'
+              history: 30d
+              value_type: UNSIGNED
+              units: ms
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.sessions[{#BMS.INDEX}].sampleAgeMs'
+              master_item:
+                key: bms.multi.snapshot
+            - uuid: 798c39c2a65c40d380a7ba99c1dc7b89
+              name: 'BMS {#BMS.NAME}: telemetry stale'
+              type: DEPENDENT
+              key: 'bms.stale[{#BMS.INDEX}]'
+              delay: '0'
+              history: 30d
+              value_type: UNSIGNED
+              valuemap:
+                name: BMS Multi Probe boolean
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.sessions[{#BMS.INDEX}].stale'
+                - type: BOOL_TO_DECIMAL
+                  parameters: []
+              master_item:
+                key: bms.multi.snapshot
+            - uuid: 761d74bde6a2411f9840eeea30d7ec99
+              name: 'BMS {#BMS.NAME}: BLE connected'
+              type: DEPENDENT
+              key: 'bms.connected[{#BMS.INDEX}]'
+              delay: '0'
+              history: 30d
+              value_type: UNSIGNED
+              valuemap:
+                name: BMS Multi Probe boolean
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.sessions[{#BMS.INDEX}].connected'
+                - type: BOOL_TO_DECIMAL
+                  parameters: []
+              master_item:
+                key: bms.multi.snapshot
+            - uuid: 99ba2c63e5cc4f9c8a603d0b2185241e
+              name: 'BMS {#BMS.NAME}: active alarm count'
+              type: DEPENDENT
+              key: 'bms.alarm.count[{#BMS.INDEX}]'
+              delay: '0'
+              history: 30d
+              value_type: UNSIGNED
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.sessions[{#BMS.INDEX}].alarmCount'
+              master_item:
+                key: bms.multi.snapshot
+            - uuid: 5f8a94545bdc4522b70318c33f2a743a
+              name: 'BMS {#BMS.NAME}: balancing state'
+              type: DEPENDENT
+              key: 'bms.balancing.state[{#BMS.INDEX}]'
+              delay: '0'
+              history: 30d
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.sessions[{#BMS.INDEX}].balancingState'
+              master_item:
+                key: bms.multi.snapshot
+          trigger_prototypes:
+            - uuid: c9ea9e810e4f4119915e79a0fbf15817
+              expression: 'last(/BMS Multi Probe by HTTP/bms.alarm.count[{#BMS.INDEX}])>0'
+              name: 'BMS {#BMS.NAME}: active BMS alarm'
+              priority: HIGH
+              opdata: 'Active alarms: {ITEM.LASTVALUE1}'
+            - uuid: 6b90cf4c9ce94cdf92a614b46c601af8
+              expression: 'last(/BMS Multi Probe by HTTP/bms.stale[{#BMS.INDEX}])=1'
+              name: 'BMS {#BMS.NAME}: telemetry is stale'
+              priority: WARNING
+              opdata: 'Last sample age: {ITEM.LASTVALUE1} ms'
+          master_item:
+            key: bms.multi.snapshot
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                    const output = [];
+                    for (const session of JSON.parse(value).sessions || []) {
+                      output.push({
+                        index: String(session.index),
+                        name: session.name || session.address || `BMS ${session.index + 1}`,
+                        address: session.address || ''
+                      });
+                    }
+                    return JSON.stringify(output);
+          lld_macro_paths:
+            - lld_macro: '{#BMS.INDEX}'
+              path: $.index
+            - lld_macro: '{#BMS.NAME}'
+              path: $.name
+            - lld_macro: '{#BMS.ADDRESS}'
+              path: $.address
+        - uuid: 38d6f4ddd5af497fbbd2c4b165fe7eb7
+          name: BMS cell discovery
+          type: DEPENDENT
+          key: bms.cell.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: e36a3c7e54bd425d859d846d44659f90
+              name: 'BMS {#BMS.NAME}: cell {#CELL.NUMBER} voltage'
+              type: DEPENDENT
+              key: 'bms.cell.voltage[{#BMS.INDEX},{#CELL.INDEX}]'
+              delay: '0'
+              history: 30d
+              value_type: FLOAT
+              units: V
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.sessions[{#BMS.INDEX}].cellsV[{#CELL.INDEX}]'
+              master_item:
+                key: bms.multi.snapshot
+          master_item:
+            key: bms.multi.snapshot
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                    const output = [];
+                    for (const session of JSON.parse(value).sessions || []) {
+                      for (let i = 0; i < (session.cellsV || []).length; i++) {
+                        output.push({
+                          index: String(session.index),
+                          name: session.name || session.address || `BMS ${session.index + 1}`,
+                          cellIndex: String(i),
+                          cellNumber: String(i + 1)
+                        });
+                      }
+                    }
+                    return JSON.stringify(output);
+          lld_macro_paths:
+            - lld_macro: '{#BMS.INDEX}'
+              path: $.index
+            - lld_macro: '{#BMS.NAME}'
+              path: $.name
+            - lld_macro: '{#CELL.INDEX}'
+              path: $.cellIndex
+            - lld_macro: '{#CELL.NUMBER}'
+              path: $.cellNumber
+        - uuid: e4f2c7e59ecc42b2a2ea9a0da4c04f54
+          name: BMS internal temperature discovery
+          type: DEPENDENT
+          key: bms.temperature.discovery
+          delay: '0'
+          item_prototypes:
+            - uuid: 8e4e4813c4544db98b879ba4eddf90b1
+              name: 'BMS {#BMS.NAME}: internal temperature {#TEMP.NUMBER}'
+              type: DEPENDENT
+              key: 'bms.temperature.sensor[{#BMS.INDEX},{#TEMP.INDEX}]'
+              delay: '0'
+              history: 30d
+              value_type: FLOAT
+              units: C
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.sessions[{#BMS.INDEX}].temperaturesC[{#TEMP.INDEX}]'
+              master_item:
+                key: bms.multi.snapshot
+          master_item:
+            key: bms.multi.snapshot
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                    const output = [];
+                    for (const session of JSON.parse(value).sessions || []) {
+                      for (let i = 0; i < (session.temperaturesC || []).length; i++) {
+                        output.push({
+                          index: String(session.index),
+                          name: session.name || session.address || `BMS ${session.index + 1}`,
+                          tempIndex: String(i),
+                          tempNumber: String(i + 1)
+                        });
+                      }
+                    }
+                    return JSON.stringify(output);
+          lld_macro_paths:
+            - lld_macro: '{#BMS.INDEX}'
+              path: $.index
+            - lld_macro: '{#BMS.NAME}'
+              path: $.name
+            - lld_macro: '{#TEMP.INDEX}'
+              path: $.tempIndex
+            - lld_macro: '{#TEMP.NUMBER}'
+              path: $.tempNumber
+      macros:
+        - macro: '{$BMS.MULTI.PROBE.HOST}'
+          value: 192.168.1.50
+          description: LAN address displayed by BMS Multi Probe on the phone.
+        - macro: '{$BMS.MULTI.PROBE.PORT}'
+          value: '8766'
+      valuemaps:
+        - uuid: 475a2e8228ea4df6a7c690c258ef77c8
+          name: BMS Multi Probe boolean
+          mappings:
+            - value: '0'
+              newvalue: 'No'
+            - value: '1'
+              newvalue: 'Yes'
