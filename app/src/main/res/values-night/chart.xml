@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Series repeat with different dash styles after this palette. -->
+    <array name="chart_palette">
+        <item>#64BAFF</item>
+        <item>#FFAF65</item>
+        <item>#65DBA5</item>
+        <item>#D19BFF</item>
+        <item>#FF8080</item>
+        <item>#BFDB70</item>
+        <item>#959FFF</item>
+        <item>#FFE078</item>
+        <item>#62DDE0</item>
+        <item>#FF8ECF</item>
+        <item>#ADC7F5</item>
+        <item>#D9AF8B</item>
+    </array>
+</resources>

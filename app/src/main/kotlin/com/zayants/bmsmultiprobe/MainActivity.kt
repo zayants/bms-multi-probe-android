@@ -9,7 +9,10 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.content.res.Configuration
-import android.graphics.Color
+import android.text.TextUtils
+import com.zayants.bmsmultiprobe.ui.UiPreferences
+import com.zayants.bmsmultiprobe.ui.UiText
+import com.zayants.bmsmultiprobe.history.CellHistoryActivity
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
@@ -36,6 +39,7 @@ import java.util.Locale
 class MainActivity : Activity(), MultiBmsService.Observer {
     private var service: MultiBmsService? = null
     private var bound = false
+    private var binding = false
     private var setupRequested = false
     private val selected = linkedMapOf<String, ProbeDevice>()
     private var scanned = emptyList<ProbeDevice>()
@@ -57,18 +61,43 @@ class MainActivity : Activity(), MultiBmsService.Observer {
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             service = (binder as MultiBmsService.LocalBinder).service()
-            service?.addObserver(this@MainActivity)
+            binding = false
             bound = true
+            service?.refreshAppearance()
+            service?.addObserver(this@MainActivity)
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             bound = false
+            binding = false
             service = null
         }
     }
 
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(UiPreferences.wrap(newBase))
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("setup", setupRequested)
+        outState.putBoolean("scanning", scanActive)
+        outState.putStringArrayList("scanOrder", ArrayList(scanOrder))
+        outState.putStringArrayList("selectedAddresses", ArrayList(selected.keys))
+        outState.putStringArrayList("selectedNames", ArrayList(selected.values.map { it.name }))
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        savedInstanceState?.let { saved ->
+            setupRequested = saved.getBoolean("setup")
+            scanActive = saved.getBoolean("scanning")
+            scanOrder.addAll(saved.getStringArrayList("scanOrder").orEmpty())
+            val names = saved.getStringArrayList("selectedNames").orEmpty()
+            saved.getStringArrayList("selectedAddresses").orEmpty().forEachIndexed { index, address ->
+                selected[address] = ProbeDevice(names.getOrElse(index) { "JK BMS" }, address)
+            }
+        }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         buildUi()
         ensurePermissionsAndStart()
@@ -80,10 +109,12 @@ class MainActivity : Activity(), MultiBmsService.Observer {
     }
 
     override fun onStop() {
-        if (bound) {
+        if (bound || binding) {
             service?.removeObserver(this)
             unbindService(connection)
             bound = false
+            binding = false
+            service = null
         }
         super.onStop()
     }
@@ -97,7 +128,7 @@ class MainActivity : Activity(), MultiBmsService.Observer {
         if (requestCode == PERMISSION_REQUEST && hasRequiredPermissions()) {
             startAndBindService()
         } else {
-            scanStatus.text = "Bluetooth and location permissions are required"
+            scanStatus.text = getString(R.string.permissions_required)
         }
     }
 
@@ -115,9 +146,9 @@ class MainActivity : Activity(), MultiBmsService.Observer {
                 stableDevices.map { it.address to it.name }
             scanned = stableDevices
             scanStatus.text = when {
-                scanning -> "Scanning: ${devices.size} BLE devices found"
-                devices.isEmpty() -> "Press SCAN, then select up to 4 BMS devices"
-                else -> "Found ${devices.size}; selected ${selected.size}/4"
+                scanning -> getString(R.string.scanning, devices.size, selected.size)
+                devices.isEmpty() -> getString(R.string.scan_hint)
+                else -> getString(R.string.found_selected, devices.size, selected.size)
             }
             scanButton.isEnabled = !scanning
             if (visibleListChanged) renderDevices()
@@ -141,11 +172,10 @@ class MainActivity : Activity(), MultiBmsService.Observer {
     override fun onWindow(window: ProbeWindow) {
         runOnUiThread {
             val fresh = window.sessions.count { it.telemetry != null }
-            val skew = window.packetSkewMs?.let { "$it ms" } ?: "—"
-            val url = service?.gatewayUrl() ?: "Wi-Fi unavailable"
+            val skew = window.packetSkewMs?.let { getString(R.string.ms_value, it) } ?: "—"
+            val url = service?.gatewayUrl() ?: getString(R.string.wifi_unavailable)
             windowSummary.text =
-                "5 s sample: ${clock(window.sampledAt)}  •  fresh $fresh/${window.sessions.size}  •  " +
-                    "packet skew $skew\nAPI: $url"
+                getString(R.string.window_summary, clock(window.sampledAt), fresh, window.sessions.size, skew, url)
         }
     }
 
@@ -153,49 +183,55 @@ class MainActivity : Activity(), MultiBmsService.Observer {
         val setupRoot = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(24))
-            setBackgroundColor(Color.rgb(245, 243, 241))
+            setBackgroundColor(getColor(R.color.ui_background))
         }
         setupRoot.addView(TextView(this).apply {
-            text = "BMS MULTI PROBE"
+            text = getString(R.string.app_name)
             textSize = 25f
-            setTextColor(Color.rgb(215, 7, 18))
+            setTextColor(getColor(R.color.ui_accent))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         })
         setupRoot.addView(TextView(this).apply {
-            text = "Connection setup • version 0.3.7\n" +
-                "Read requests only (device info + telemetry); no BMS settings writes\n" +
-                "Dashboard has six visual slots; stable BLE test limit remains four connections"
+            text = getString(R.string.setup_intro, getString(R.string.build_version))
             textSize = 13f
-            setTextColor(Color.DKGRAY)
+            setTextColor(getColor(R.color.ui_muted))
             setPadding(0, dp(4), 0, dp(12))
         })
 
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        scanButton = actionButton("SCAN") { service?.scan() }
-        connectButton = actionButton("CONNECT") {
+        scanButton = actionButton(getString(R.string.scan)) { service?.scan() }
+        connectButton = actionButton(if (selected.isEmpty()) getString(R.string.connect)
+            else getString(R.string.connect_count, selected.size)) {
             if (selected.isEmpty()) {
-                scanStatus.text = "Select up to 4 BMS devices first"
+                scanStatus.text = getString(R.string.select_first)
             } else {
                 setupRequested = false
                 service?.connect(selected.values.toList())
             }
         }
-        disconnectButton = actionButton("DISCONNECT") {
+        disconnectButton = actionButton(getString(R.string.disconnect)) {
             service?.disconnectAll()
             setupRequested = true
             selected.clear()
             renderDevices()
+            connectButton.text = getString(R.string.connect)
         }
-        backButton = actionButton("← BACK") { returnToDashboard() }.apply {
+        backButton = actionButton(getString(R.string.back)) { returnToDashboard() }.apply {
             visibility = View.GONE
         }
         actions.addView(scanButton, weightParams())
         actions.addView(connectButton, weightParams())
-        actions.addView(disconnectButton, weightParams())
-        actions.addView(backButton, weightParams())
         setupRoot.addView(actions)
+        setupRoot.addView(LinearLayout(this).apply {
+            addView(disconnectButton, weightParams())
+            addView(backButton, weightParams())
+        })
+        setupRoot.addView(LinearLayout(this).apply {
+            addView(actionButton(getString(R.string.language)) { chooseLanguage() }, weightParams())
+            addView(actionButton(getString(R.string.theme)) { chooseTheme() }, weightParams())
+        })
 
-        scanStatus = label("Press SCAN, then select up to 4 BMS devices", 14f)
+        scanStatus = label(getString(R.string.scan_hint), 14f)
         scanStatus.setPadding(0, dp(12), 0, dp(8))
         setupRoot.addView(scanStatus)
 
@@ -207,33 +243,33 @@ class MainActivity : Activity(), MultiBmsService.Observer {
         val dashboard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(10), dp(8), dp(10), dp(10))
-            setBackgroundColor(Color.rgb(9, 14, 27))
+            setBackgroundColor(getColor(R.color.ui_background))
         }
         val dashboardHeader = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        dashboardHeader.addView(label("BMS FLEET", 22f).apply {
-            setTextColor(Color.WHITE)
+        dashboardHeader.addView(label(getString(R.string.fleet), 22f).apply {
+            setTextColor(getColor(R.color.ui_text))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        dashboardHeader.addView(label("6 MONITORS", 11f).apply {
+        dashboardHeader.addView(label(getString(R.string.monitors), 11f).apply {
             gravity = Gravity.CENTER
-            setTextColor(Color.rgb(165, 228, 255))
+            setTextColor(getColor(R.color.ui_accent))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            background = rounded(Color.rgb(25, 63, 90), dp(12))
+            background = rounded(getColor(R.color.ui_badge), dp(12))
             setPadding(dp(10), dp(6), dp(10), dp(6))
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             setMargins(0, 0, dp(8), 0)
         })
-        dashboardHeader.addView(actionButton("SETUP") {
+        dashboardHeader.addView(actionButton(getString(R.string.setup)) {
             setupRequested = true
             showSetup()
         }, LinearLayout.LayoutParams(dp(104), dp(44)))
         dashboard.addView(dashboardHeader)
 
-        windowSummary = label("5 s sample: waiting", 13f).apply {
-            setTextColor(Color.rgb(126, 232, 170))
+        windowSummary = label(getString(R.string.waiting_sample), 13f).apply {
+            setTextColor(getColor(R.color.ui_success))
             setPadding(0, dp(4), 0, dp(5))
         }
         dashboard.addView(windowSummary)
@@ -275,15 +311,15 @@ class MainActivity : Activity(), MultiBmsService.Observer {
                 stateListAnimator = null
                 minHeight = dp(66)
                 text = if (isSelected) {
-                    "✓  SELECTED  •  ${device.name}\n     ${device.address}  •  ${device.rssi} dBm"
+                    getString(R.string.device_selected, getString(R.string.selected), device.name, device.address, device.rssi)
                 } else {
-                    "○  ${device.name}\n     ${device.address}  •  ${device.rssi} dBm"
+                    getString(R.string.device_row, device.name, device.address, device.rssi)
                 }
-                setTextColor(if (isSelected) Color.WHITE else Color.rgb(35, 45, 55))
+                setTextColor(if (isSelected) getColor(R.color.ui_selected_text) else getColor(R.color.ui_text))
                 background = if (isSelected) {
-                    rounded(Color.rgb(25, 119, 92), dp(10), Color.rgb(60, 214, 135))
+                    rounded(getColor(R.color.ui_selected), dp(10), getColor(R.color.ui_success))
                 } else {
-                    rounded(Color.WHITE, dp(10), Color.rgb(180, 187, 194))
+                    rounded(getColor(R.color.ui_surface), dp(10), getColor(R.color.ui_border))
                 }
                 setOnClickListener {
                     if (isSelected) {
@@ -291,11 +327,12 @@ class MainActivity : Activity(), MultiBmsService.Observer {
                     } else if (selected.size < 4) {
                         selected[device.address] = device
                     } else {
-                        scanStatus.text = "Maximum is 4 persistent connections"
+                        scanStatus.text = getString(R.string.max_devices)
+                        return@setOnClickListener
                     }
                     renderDevices()
-                    connectButton.text = "CONNECT ${selected.size}"
-                    scanStatus.text = "Found ${scanned.size}; selected ${selected.size}/4"
+                    connectButton.text = getString(R.string.connect_count, selected.size)
+                    scanStatus.text = getString(R.string.found_selected, scanned.size, selected.size)
                 }
             }, matchParams().apply { setMargins(0, dp(3), 0, dp(3)) })
         }
@@ -313,34 +350,46 @@ class MainActivity : Activity(), MultiBmsService.Observer {
             val sample = state.telemetry
             val alarms = sample?.alarms.orEmpty()
             val accent = when {
-                alarms.isNotEmpty() -> Color.rgb(255, 91, 91)
-                !state.transportConnected -> Color.rgb(255, 190, 92)
-                sample == null -> Color.rgb(255, 190, 92)
-                else -> Color.rgb(60, 214, 135)
+                alarms.isNotEmpty() -> getColor(R.color.ui_alarm)
+                !state.transportConnected -> getColor(R.color.ui_warning)
+                sample == null -> getColor(R.color.ui_warning)
+                else -> getColor(R.color.ui_success)
             }
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(12), dp(10), dp(12), dp(9))
-                background = rounded(Color.rgb(22, 31, 51), dp(16), accent)
-                if (alarms.isNotEmpty()) {
-                    isClickable = true
-                    isFocusable = true
-                    contentDescription = "BMS ${index + 1}: alarm. Tap to view causes."
-                    setOnClickListener { showAlarmDialog(index, state, alarms) }
+                val padding = resources.getDimensionPixelSize(R.dimen.card_padding)
+                setPadding(padding, padding, padding, padding)
+                background = rounded(getColor(R.color.ui_surface), resources.getDimensionPixelSize(R.dimen.card_radius), accent)
+                isClickable = true
+                isFocusable = true
+                contentDescription = getString(R.string.chart_open, state.device.name)
+                setOnClickListener {
+                    startActivity(Intent(this@MainActivity, CellHistoryActivity::class.java).apply {
+                        putExtra("address", state.device.address)
+                        putExtra("name", state.device.name)
+                    })
                 }
             }
             val top = LinearLayout(this).apply {
                 gravity = Gravity.CENTER_VERTICAL
                 orientation = LinearLayout.HORIZONTAL
             }
-            top.addView(label("BMS ${index + 1}  ${state.device.name}", 14f).apply {
-                setTextColor(Color.WHITE)
+            top.addView(label(getString(R.string.bms_title, index + 1, state.device.name), sp(R.dimen.card_title_text)).apply {
+                setTextColor(getColor(R.color.ui_text))
                 maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            top.addView(label(if (alarms.isNotEmpty()) "ALARM" else state.status.uppercase(), 9f).apply {
+            top.addView(label(if (alarms.isNotEmpty()) getString(R.string.alarm) else UiText.status(this, state.status), 9f).apply {
                 gravity = Gravity.CENTER
-                setTextColor(if (alarms.isNotEmpty()) Color.WHITE else Color.rgb(9, 14, 27))
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+                maxWidth = dp(100)
+                if (alarms.isNotEmpty()) {
+                    contentDescription = getString(R.string.alarm_accessibility, index + 1)
+                    setOnClickListener { showAlarmDialog(index, state, alarms) }
+                }
+                setTextColor(getColor(R.color.ui_badge_text))
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 background = rounded(accent, dp(8))
                 setPadding(dp(6), dp(3), dp(6), dp(3))
@@ -348,11 +397,14 @@ class MainActivity : Activity(), MultiBmsService.Observer {
             card.addView(top)
             card.addView(label(
                 sample?.let { "${it.socPercent}%" } ?: "—%",
-                if (landscape) 36f else 38f,
+                sp(R.dimen.soc_text),
             ).apply {
                 gravity = Gravity.CENTER
+                maxLines = 1
+                setAutoSizeTextTypeUniformWithConfiguration(16, sp(R.dimen.soc_text).toInt(), 1,
+                    android.util.TypedValue.COMPLEX_UNIT_SP)
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(if (sample == null) Color.rgb(139, 153, 178) else accent)
+                setTextColor(if (sample == null) getColor(R.color.ui_muted) else accent)
             }, if (landscape) {
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50))
             } else {
@@ -360,30 +412,32 @@ class MainActivity : Activity(), MultiBmsService.Observer {
             })
             if (landscape) {
                 card.addView(metricRow(
-                    metric("VOLT", sample?.let { "%.2f V".format(it.packVoltageV) } ?: "—"),
-                    metric("CURRENT", sample?.let { "%.2f A".format(it.currentA) } ?: "—"),
-                    metric("TEMP", sample?.let { "%.1f °C".format(it.temperatureC) } ?: "—"),
+                    metric(getString(R.string.voltage), sample?.let { getString(R.string.voltage_value, it.packVoltageV) } ?: "—"),
+                    metric(getString(R.string.current), sample?.let { getString(R.string.current_value, it.currentA) } ?: "—"),
+                    metric(getString(R.string.temperature), sample?.let { getString(R.string.temperature_value, it.temperatureC) } ?: "—"),
                 ))
             } else {
                 card.addView(metricRow(
-                    metric("VOLTAGE", sample?.let { "%.2f V".format(it.packVoltageV) } ?: "—"),
-                    metric("CURRENT", sample?.let { "%.2f A".format(it.currentA) } ?: "—"),
+                    metric(getString(R.string.voltage), sample?.let { getString(R.string.voltage_value, it.packVoltageV) } ?: "—"),
+                    metric(getString(R.string.current), sample?.let { getString(R.string.current_value, it.currentA) } ?: "—"),
                 ))
                 card.addView(metricRow(
-                    metric("POWER", sample?.let { "%.0f W".format(it.packVoltageV * it.currentA) } ?: "—"),
-                    metric("TEMP", sample?.let { "%.1f °C".format(it.temperatureC) } ?: "—"),
+                    metric(getString(R.string.power), sample?.let { getString(R.string.power_value, it.packVoltageV * it.currentA) } ?: "—"),
+                    metric(getString(R.string.temperature), sample?.let { getString(R.string.temperature_value, it.temperatureC) } ?: "—"),
                 ))
             }
             card.addView(label(
                 when {
-                    alarms.isNotEmpty() -> "ALARM • tap card for details"
-                    sample != null -> "${sample.cellsV.size} cells  •  ${state.packetCount} packets"
-                    else -> "Waiting for telemetry"
+                    alarms.isNotEmpty() -> getString(R.string.chart_alarm_hint)
+                    sample != null -> getString(R.string.packet_summary, sample.cellsV.size, state.packetCount)
+                    else -> getString(R.string.waiting_telemetry)
                 },
                 10f,
             ).apply {
                 gravity = Gravity.CENTER
-                setTextColor(Color.rgb(154, 171, 195))
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+                setTextColor(getColor(R.color.ui_muted))
                 setPadding(0, dp(6), 0, 0)
             })
             sessionList.addView(card, gridParams())
@@ -394,21 +448,21 @@ class MainActivity : Activity(), MultiBmsService.Observer {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER
         setPadding(dp(10), dp(10), dp(10), dp(10))
-        background = rounded(Color.rgb(22, 31, 51), dp(16), Color.rgb(53, 68, 94))
-        addView(label("BMS ${index + 1}", 14f).apply {
-            setTextColor(Color.rgb(199, 211, 229))
+        background = rounded(getColor(R.color.ui_surface), resources.getDimensionPixelSize(R.dimen.card_radius), getColor(R.color.ui_border))
+        addView(label(getString(R.string.bms_slot, index + 1), 14f).apply {
+            setTextColor(getColor(R.color.ui_muted))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         })
-        addView(label("READY", 10f).apply {
-            setTextColor(Color.rgb(121, 143, 175))
+        addView(label(getString(R.string.ready), 10f).apply {
+            setTextColor(getColor(R.color.ui_muted))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setPadding(0, dp(6), 0, 0)
         })
-        addView(label("—%", 38f).apply {
-            setTextColor(Color.rgb(99, 116, 145))
+        addView(label("—%", sp(R.dimen.soc_text)).apply {
+            setTextColor(getColor(R.color.ui_muted))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         })
-        addView(label("Slot available", 12f).apply { setTextColor(Color.rgb(121, 143, 175)) })
+        addView(label(getString(R.string.slot_available), 12f).apply { setTextColor(getColor(R.color.ui_muted)) })
     }
 
     private fun metricRow(vararg metrics: View) = LinearLayout(this).apply {
@@ -420,25 +474,25 @@ class MainActivity : Activity(), MultiBmsService.Observer {
 
     private fun showAlarmDialog(index: Int, state: ProbeSessionState, alarms: List<String>) {
         AlertDialog.Builder(this)
-            .setTitle("BMS ${index + 1}: alarm")
+            .setTitle(getString(R.string.alarm_title, index + 1))
             .setMessage(buildString {
                 append(state.device.name)
                 append("\n\n")
-                alarms.forEach { append("• ").append(it).append('\n') }
-                append("\nSource: JK BMS runtime alarm flag. Monitoring is read-only.")
+                alarms.forEach { append("• ").append(UiText.alarm(this@MainActivity, it)).append('\n') }
+                append("\n").append(getString(R.string.alarm_source))
             })
-            .setPositiveButton("Close", null)
+            .setPositiveButton(getString(R.string.close), null)
             .show()
     }
 
     private fun metric(title: String, value: String) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        addView(label(title, 8f).apply {
-            setTextColor(Color.rgb(126, 150, 185))
+        addView(label(title, sp(R.dimen.metric_label_text)).apply {
+            setTextColor(getColor(R.color.ui_muted))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         })
-        addView(label(value, 13f).apply {
-            setTextColor(Color.rgb(238, 244, 253))
+        addView(label(value, sp(R.dimen.metric_value_text)).apply {
+            setTextColor(getColor(R.color.ui_text))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         })
     }
@@ -455,7 +509,8 @@ class MainActivity : Activity(), MultiBmsService.Observer {
         height = 0
         columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
         rowSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
-        setMargins(dp(4), dp(4), dp(4), dp(4))
+        val gap = resources.getDimensionPixelSize(R.dimen.card_gap)
+        setMargins(gap, gap, gap, gap)
     }
 
     private fun showDashboard() {
@@ -513,7 +568,9 @@ class MainActivity : Activity(), MultiBmsService.Observer {
     private fun startAndBindService() {
         val intent = Intent(this, MultiBmsService::class.java)
         startForegroundService(intent)
-        if (!bound) bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        if (!bound && !binding) {
+            binding = bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        }
     }
 
     private fun requiredPermissions(): Array<String> = buildList {
@@ -536,13 +593,14 @@ class MainActivity : Activity(), MultiBmsService.Observer {
     private fun actionButton(title: String, action: () -> Unit) = Button(this).apply {
         text = title
         textSize = 11f
+        isAllCaps = false
         setOnClickListener { action() }
     }
 
     private fun label(value: String, size: Float) = TextView(this).apply {
         text = value
         textSize = size
-        setTextColor(Color.rgb(30, 30, 30))
+        setTextColor(getColor(R.color.ui_text))
     }
 
     private fun matchParams() = LinearLayout.LayoutParams(
@@ -553,6 +611,35 @@ class MainActivity : Activity(), MultiBmsService.Observer {
     private fun weightParams() = LinearLayout.LayoutParams(0, dp(48), 1f).apply {
         setMargins(dp(2), 0, dp(2), 0)
     }
+
+    private fun chooseLanguage() {
+        val tags = listOf("system") + UiPreferences.languageTags(this)
+        val names = listOf(getString(R.string.system_default)) + resources.getStringArray(R.array.language_names)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.language)
+            .setSingleChoiceItems(names.toTypedArray(), tags.indexOf(UiPreferences.language(this))) { dialog, index ->
+                UiPreferences.setLanguage(this, tags[index])
+                dialog.dismiss()
+                recreate()
+            }
+            .setNegativeButton(R.string.cancel, null).show()
+    }
+
+    private fun chooseTheme() {
+        val choices = listOf("light", "dark")
+        AlertDialog.Builder(this)
+            .setTitle(R.string.theme)
+            .setSingleChoiceItems(arrayOf(getString(R.string.light), getString(R.string.dark)),
+                choices.indexOf(UiPreferences.theme(this))) { dialog, index ->
+                UiPreferences.setTheme(this, choices[index])
+                dialog.dismiss()
+                recreate()
+            }
+            .setNegativeButton(R.string.cancel, null).show()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun sp(id: Int) = resources.getDimension(id) / resources.displayMetrics.scaledDensity
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 

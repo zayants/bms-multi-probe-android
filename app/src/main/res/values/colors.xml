@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark navigation strip keeps white system icons readable even on Android 8.0. -->
+    <color name="ui_navigation">#090E1B</color>
+    <color name="ui_background">#EFF3F8</color>
+    <color name="ui_surface">#FFFFFF</color>
+    <color name="ui_text">#182538</color>
+    <color name="ui_muted">#536781</color>
+    <color name="ui_border">#CBD5E1</color>
+    <color name="ui_accent">#146FA3</color>
+    <color name="ui_success">#087A4B</color>
+    <color name="ui_warning">#986000</color>
+    <color name="ui_alarm">#C62535</color>
+    <color name="ui_badge_text">#FFFFFF</color>
+    <color name="ui_selected">#137455</color>
+    <color name="ui_selected_text">#FFFFFF</color>
+    <color name="ui_badge">#DEEFFB</color>
+</resources>

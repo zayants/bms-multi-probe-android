@@ -1,5 +1,6 @@
 package com.zayants.bmsmultiprobe.web
 
+import android.content.Context
 import com.zayants.bmsmultiprobe.SampleWindow
 import com.zayants.bmsmultiprobe.model.ProbeWindow
 import org.json.JSONArray
@@ -16,6 +17,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class MultiProbeServer(
+    private val context: Context,
     private val windowProvider: () -> ProbeWindow,
 ) {
     private var serverSocket: ServerSocket? = null
@@ -140,28 +142,7 @@ class MultiProbeServer(
         }.toString()
     }
 
-    /** A small, local-only convenience view.  Monitoring systems should use the JSON endpoint. */
-    private fun browserPage(): String = """
-        <!doctype html>
-        <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>BMS Multi Probe</title><style>
-          body{margin:0;background:#101820;color:#e7edf3;font:15px system-ui,sans-serif;padding:20px}
-          h1{margin:0 0 4px;font-size:24px}.muted{color:#9eabb9}.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-top:16px}
-          article{background:#18232e;border:1px solid #2d3b49;border-radius:12px;padding:14px}article.alarm{border-color:#e85555}
-          strong{font-size:20px}.kv{display:grid;grid-template-columns:1fr auto;gap:5px;margin-top:10px}.bad{color:#ff7373}.ok{color:#80d7a0}
-          code{color:#9fc6ff;word-break:break-all}#error{color:#ff7373;white-space:pre-wrap}
-        </style></head><body><h1>BMS Multi Probe</h1><div class="muted">Live local view · refreshes every 5 seconds</div>
-        <div id="summary" class="muted">Loading…</div><div id="error"></div><main id="sessions" class="grid"></main>
-        <p class="muted">Machine endpoint: <code>/api/v1/multi/snapshot</code></p><script>
-        const esc=v=>String(v??'—').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
-        const num=(v,u='')=>v==null?'—':Number(v).toFixed(2)+u;
-        async function refresh(){try{const r=await fetch('/api/v1/multi/snapshot',{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const x=await r.json();
-          document.querySelector('#error').textContent='';document.querySelector('#summary').textContent=x.freshCount+'/'+x.sessionCount+' fresh · sampled '+new Date(x.sampledAt).toLocaleTimeString();
-          document.querySelector('#sessions').innerHTML=x.sessions.map(s=>{const alarm=s.hasAlarm?' alarm':'';const cells=(s.cellsV||[]).map((v,i)=>'C'+(i+1)+': '+num(v,' V')).join(' · ');const alarmText=s.alarmCount?'<p class="bad">'+esc(s.alarms.join('; '))+'</p>':'';
-            return '<article class="'+alarm+'"><strong>'+esc(s.name||s.address)+'</strong><div class="muted">'+esc(s.address)+' · '+esc(s.status)+'</div><div class="kv"><span>SOC</span><b>'+num(s.socPercent,'%')+'</b><span>Pack voltage</span><b>'+num(s.packVoltageV,' V')+'</b><span>Current</span><b>'+num(s.currentA,' A')+'</b><span>Temperature</span><b>'+num(s.temperatureC,' °C')+'</b><span>Balancing</span><b>'+esc(s.balancingState)+'</b><span>Freshness</span><b class="'+(s.stale?'bad':'ok')+'">'+(s.stale?'stale':num(s.sampleAgeMs,' ms'))+'</b></div>'+alarmText+'<p class="muted">'+esc(cells)+'</p></article>'}).join('')||'<p class="muted">No BMS sessions configured.</p>';
-        }catch(e){document.querySelector('#error').textContent='Cannot load snapshot: '+e;}}refresh();setInterval(refresh,5000);
-        </script></body></html>
-    """.trimIndent()
+    private fun browserPage(): String = BrowserPage.render(context)
 
     private fun respond(client: Socket, status: Int, contentType: String, body: String) {
         val bytes = body.toByteArray(StandardCharsets.UTF_8)
