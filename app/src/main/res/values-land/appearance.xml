@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Preserve space for SOC in two rows on a short landscape screen. -->
+    <dimen name="card_padding">6dp</dimen>
+    <dimen name="card_gap">3dp</dimen>
+    <dimen name="soc_text">32sp</dimen>
+</resources>

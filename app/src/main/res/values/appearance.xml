@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="build_version" translatable="false">0.3.9</string>
+    <!-- Add a matching values-xx/strings.xml and one pair here to add a language. -->
+    <string-array name="language_tags" translatable="false">
+        <item>en</item><item>ru</item><item>uk</item>
+    </string-array>
+    <string-array name="language_names" translatable="false">
+        <item>English</item><item>Русский</item><item>Українська</item>
+    </string-array>
+    <!-- Shared design tokens. sp respects the user's system font size. -->
+    <dimen name="card_radius">16dp</dimen>
+    <dimen name="card_gap">4dp</dimen>
+    <dimen name="card_padding">10dp</dimen>
+    <dimen name="soc_text">38sp</dimen>
+    <dimen name="metric_label_text">8sp</dimen>
+    <dimen name="metric_value_text">13sp</dimen>
+    <dimen name="card_title_text">14sp</dimen>
+</resources>

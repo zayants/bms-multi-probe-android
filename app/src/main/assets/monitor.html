@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BMS Multi Probe</title>
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--background);color:var(--text);font:15px system-ui,sans-serif;padding:20px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{margin:0 0 4px;font-size:24px}
+.controls{display:flex;gap:12px;flex-wrap:wrap}
+label{display:flex;gap:6px;align-items:center}
+select,button{font:inherit;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px}
+.muted{color:var(--muted)}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-top:16px}
+article{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px;min-width:0}
+article.alarm{border:2px solid var(--alarm);cursor:pointer}
+article:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+article.stale{border-style:dashed}
+strong{font-size:20px;overflow-wrap:anywhere}
+.soc{font-size:42px;font-weight:700;color:var(--success);text-align:center;margin:12px 0}
+.alarm .soc{color:var(--alarm)}
+.kv{display:grid;grid-template-columns:1fr auto;gap:5px;margin-top:10px}
+.bad{color:var(--alarm)}.ok{color:var(--success)}
+code,a{color:var(--accent);overflow-wrap:anywhere}
+#error{color:var(--alarm)}
+dialog{background:var(--surface);color:var(--text);border:2px solid var(--alarm);border-radius:16px;max-width:min(90vw,560px)}
+dialog::backdrop{background:#0008}
+li{margin:8px 0}
+</style></head><body>
+<header><div><h1>BMS Multi Probe</h1><div class="muted" data-text="web_subtitle"></div></div>
+<div class="controls"><label><span data-text="language"></span><select id="language"></select></label>
+<label><span data-text="theme"></span><select id="theme"><option value="light" data-text="light"></option><option value="dark" data-text="dark"></option></select></label></div></header>
+<p id="summary" class="muted"></p><div id="error" role="status"></div><main id="sessions" class="grid"></main>
+<p class="muted"><span data-text="endpoint"></span>: <a href="/api/v1/multi/snapshot"><code>/api/v1/multi/snapshot</code></a></p>
+<dialog id="alarms"><h2 id="alarm-title"></h2><ul id="alarm-list"></ul><p data-text="alarm_source"></p><form method="dialog"><button data-text="close"></button></form></dialog>
+<script>
+'use strict';
+const config=__UI_CONFIG__;
+const el=id=>document.getElementById(id);
+const storage={get(k){try{return localStorage.getItem(k)}catch{return null}},set(k,v){try{localStorage.setItem(k,v)}catch{}}};
+let language=storage.get('bms.language')||config.language;
+if(!config.catalogs[language])language='en';
+let theme=storage.get('bms.theme')||config.theme;
+if(!config.palettes[theme])theme='dark';
+let snapshot=null,failed=false,inFlight=false;
+const text=k=>config.catalogs[language][k]||k;
+const esc=v=>String(v??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=(v,unit='',precision=2)=>v==null?'—':new Intl.NumberFormat(language,{minimumFractionDigits:precision,maximumFractionDigits:precision}).format(v)+unit;
+const unit=k=>' '+text(k).replace(/%1\$[^ ]+\s*/,'');
+function status(value){
+ const known=text('statuses')[value];if(known)return known;
+ for(const [pattern,key] of [[/^MTU (\d+); discovering$/,'status_mtu'],[/^service discovery error (-?\d+)$/,'status_service_error'],[/^notification error (-?\d+)$/,'status_notification_error']]){
+  const match=String(value).match(pattern);if(match)return text(key).replace('%1$s',match[1]);
+ }
+ return text('status_unknown');
+}
+function applyAppearance(){
+ document.documentElement.lang=language;document.documentElement.style.colorScheme=theme;
+ for(const [key,value]of Object.entries(config.palettes[theme]))document.documentElement.style.setProperty('--'+key,value);
+ document.querySelectorAll('[data-text]').forEach(node=>node.textContent=text(node.dataset.text));
+ el('language').value=language;el('theme').value=theme;
+ if(el('alarms').open)el('alarms').close();
+ render();
+}
+for(const item of config.languages){const option=document.createElement('option');option.value=item.tag;option.textContent=item.name;el('language').append(option)}
+el('language').onchange=()=>{language=el('language').value;storage.set('bms.language',language);applyAppearance()};
+el('theme').onchange=()=>{theme=el('theme').value;storage.set('bms.theme',theme);applyAppearance()};
+function showAlarms(index){
+ const s=snapshot?.sessions[index];if(!s?.alarms?.length||failed)return;
+ el('alarm-title').textContent=s.name+' · '+text('alarm');
+ el('alarm-list').replaceChildren(...s.alarms.map(a=>{const li=document.createElement('li');li.textContent=text('alarms')[a]||a;return li}));
+ el('alarms').showModal();
+}
+function render(){
+ el('error').textContent=failed?text('load_failed')+' · '+text('stale'):'';
+ if(!snapshot){el('summary').textContent=failed?text('stale'):text('loading');return}
+ el('summary').textContent=failed?text('stale'):snapshot.freshCount+'/'+snapshot.sessionCount+' '+text('fresh')+' · '+text('sampled')+' '+new Date(snapshot.sampledAt).toLocaleTimeString(language);
+ el('sessions').innerHTML=snapshot.sessions.map((s,index)=>{
+  const stale=failed||s.stale;const hasAlarm=!stale&&s.hasAlarm;
+  const val=(value,u='',p=2)=>stale?'—':num(value,u,p);
+  const kv=(key,value)=>'<span>'+esc(text(key))+'</span><b>'+esc(value)+'</b>';
+  const cells=stale?'—':(s.cellsV||[]).map((v,i)=>text('cell')+' '+(i+1)+': '+num(v,unit('voltage_value'),3)).join(' · ');
+  return '<article class="'+(hasAlarm?'alarm ':'')+(stale?'stale':'')+'"'+(hasAlarm?' tabindex="0" role="button" data-alarm="'+index+'" aria-label="'+esc(s.name+' · '+text('alarm_hint'))+'"':'')+'><strong>'+esc(s.name||s.address)+'</strong><div class="muted">'+esc(s.address)+' · '+esc(stale?text('stale'):status(s.status))+'</div><div class="soc">'+val(s.socPercent,'%',0)+'</div><div class="kv">'+kv('voltage',val(s.packVoltageV,unit('voltage_value')))+kv('current',val(s.currentA,unit('current_value')))+kv('temperature',val(s.temperatureC,' °C',1))+kv('balancing',stale?'—':text('balance_'+(s.balancingState||'unavailable')))+kv('freshness',stale?text('stale'):num(s.sampleAgeMs,unit('ms_value'),0))+'</div>'+(hasAlarm?'<p class="bad">'+esc(text('alarm_hint'))+'</p>':'')+'<p class="muted">'+esc(cells)+'</p></article>';
+ }).join('')||'<p class="muted">'+esc(text('no_sessions'))+'</p>';
+}
+el('sessions').addEventListener('click',event=>{const card=event.target.closest('[data-alarm]');if(card)showAlarms(Number(card.dataset.alarm))});
+el('sessions').addEventListener('keydown',event=>{const card=event.target.closest('[data-alarm]');if(card&&(event.key==='Enter'||event.key===' ')){event.preventDefault();showAlarms(Number(card.dataset.alarm))}});
+async function refresh(){
+ if(inFlight)return;inFlight=true;
+ const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),4000);
+ try{const response=await fetch('/api/v1/multi/snapshot',{cache:'no-store',signal:controller.signal});
+ if(!response.ok)throw Error('HTTP '+response.status);
+ const data=await response.json();if(!Array.isArray(data.sessions))throw Error('Invalid snapshot');
+ snapshot=data;failed=false;
+ }catch{failed=true;if(el('alarms').open)el('alarms').close()}
+ finally{clearTimeout(timeout);inFlight=false;render()}
+}
+applyAppearance();refresh();setInterval(refresh,5000);
+</script></body></html>

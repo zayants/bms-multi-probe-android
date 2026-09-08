@@ -1,4 +1,53 @@
-# BMS Multi Probe 0.3.7-alpha.1
+# BMS Multi Probe 0.3.9-alpha.1
+
+Experimental read-only Android monitor for up to four simultaneous JK/Jikong
+BMS connections with six dashboard slots.
+
+## New
+
+- Tap any populated BMS card to open individual cell-voltage history.
+- One curve per cell, pinch zoom, horizontal drag and range buttons for
+  1 hour, 24 hours, 7 days, 30 days and six calendar months.
+- The last 24 hours retain fresh samples at roughly five-second resolution.
+  Older history uses five-minute averages while preserving cell minima and
+  maxima. Gaps are never interpolated.
+- Cell curves can be hidden from the colour legend.
+- Complete English, Russian and Ukrainian UI and browser translations.
+- Light and dark themes based on shared, editable design resources.
+- Alarm details remain available from the history screen.
+
+History starts accumulating after this version is installed. It is kept only
+in the application's private local database and is removed if Android clears
+the app's data.
+
+BLE scanning, connections, same-GATT reconnect behaviour and GATT timeouts are
+unchanged. The only BMS requests remain the read-only device-info and telemetry
+registers (0x97 and 0x96). The JSON API contract is unchanged.
+
+This is a debug-signed, not production-signed, alpha build for testing. It has
+not yet completed a long-duration multi-BMS field test.
+
+## Русский
+
+Добавлена локальная история напряжений всех ячеек: график по нажатию на
+карточку, масштабирование двумя пальцами, горизонтальная прокрутка,
+выбор периода до шести месяцев и скрытие отдельных кривых.
+
+История начинает накапливаться после установки. Последние сутки сохраняются
+с шагом около 5 секунд, старые данные — пятиминутные средние с минимумами
+и максимумами. BLE и JSON API не изменены.
+
+## Предыдущая локальная версия: 0.3.8
+
+Первый этап: изменяемое оформление и полная локализация EN/RU/UK,
+светлая/тёмная темы, сохранение состояния интерфейса при их переключении.
+Подробности и ограничения: DESIGN.md. Код BLE и JSON API не изменены.
+
+Сборка предназначена для ручной установки и проверки и опубликована как
+предварительная тестовая версия.
+Удалённый сервер/интернет-мониторинг в эту версию не входят.
+
+## Предыдущая публичная версия: 0.3.7-alpha.1
 
 Initial public test build of the separate multi-BMS Android monitor.
 

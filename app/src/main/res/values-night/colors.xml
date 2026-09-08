@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ui_navigation">#090E1B</color>
+    <color name="ui_background">#090E1B</color>
+    <color name="ui_surface">#161F33</color>
+    <color name="ui_text">#EEF4FD</color>
+    <color name="ui_muted">#9AABC3</color>
+    <color name="ui_border">#35445E</color>
+    <color name="ui_accent">#A5E4FF</color>
+    <color name="ui_success">#3CD687</color>
+    <color name="ui_warning">#FFBE5C</color>
+    <color name="ui_alarm">#FF5B5B</color>
+    <color name="ui_badge_text">#090E1B</color>
+    <color name="ui_selected">#19775C</color>
+    <color name="ui_selected_text">#FFFFFF</color>
+    <color name="ui_badge">#193F5A</color>
+</resources>

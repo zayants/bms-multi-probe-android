@@ -1,5 +1,7 @@
 package com.zayants.bmsmultiprobe
 
+import com.zayants.bmsmultiprobe.ui.UiPreferences
+import com.zayants.bmsmultiprobe.history.HistoryStore
 import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
@@ -37,12 +39,14 @@ class MultiBmsService : Service(), MultiBmsBleManager.Listener {
     private val preferences by lazy { getSharedPreferences(PREFERENCES, MODE_PRIVATE) }
     private lateinit var manager: MultiBmsBleManager
     private lateinit var webServer: MultiProbeServer
+    private var scanInProgress = false
     @Volatile
     private var lastWindow = ProbeWindow(System.currentTimeMillis(), emptyList(), null)
 
     private val sampleTicker = object : Runnable {
         override fun run() {
             lastWindow = SampleWindow.create(System.currentTimeMillis(), manager.currentStates())
+            HistoryStore.get(this@MultiBmsService).record(lastWindow)
             observers.forEach { it.onWindow(lastWindow) }
             handler.postDelayed(this, SampleWindow.INTERVAL_MS)
         }
@@ -51,9 +55,9 @@ class MultiBmsService : Service(), MultiBmsBleManager.Listener {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, notification("Waiting for up to 4 BMS connections"))
+        startForeground(NOTIFICATION_ID, notification(UiPreferences.wrap(this).getString(R.string.service_waiting)))
         manager = MultiBmsBleManager(this, this)
-        webServer = MultiProbeServer { lastWindow }
+        webServer = MultiProbeServer(this) { lastWindow }
         webServer.start()
         handler.post(sampleTicker)
         if (hasBluetoothPermission()) {
@@ -74,7 +78,7 @@ class MultiBmsService : Service(), MultiBmsBleManager.Listener {
 
     fun addObserver(observer: Observer) {
         observers += observer
-        observer.onScanChanged(manager.scannedDevices(), false)
+        observer.onScanChanged(manager.scannedDevices(), scanInProgress)
         observer.onSessionsChanged(manager.currentStates())
         observer.onWindow(lastWindow)
     }
@@ -104,6 +108,7 @@ class MultiBmsService : Service(), MultiBmsBleManager.Listener {
     }
 
     override fun onScanChanged(devices: List<ProbeDevice>, scanning: Boolean) {
+        scanInProgress = scanning
         observers.forEach { it.onScanChanged(devices, scanning) }
     }
 
@@ -117,7 +122,18 @@ class MultiBmsService : Service(), MultiBmsBleManager.Listener {
         observers.forEach { it.onSessionsChanged(current) }
         val connected = current.count { it.transportConnected }
         getSystemService(NotificationManager::class.java)
-            .notify(NOTIFICATION_ID, notification("$connected/${current.size} BMS connected"))
+            .notify(NOTIFICATION_ID, notification(UiPreferences.wrap(this).getString(R.string.service_connected, connected, current.size)))
+    }
+
+    /** Refresh only visible notification text. No BLE reconnect or service restart. */
+    fun refreshAppearance() {
+        createNotificationChannel()
+        val current = manager.currentStates()
+        val localized = UiPreferences.wrap(this)
+        val text = if (current.isEmpty()) localized.getString(R.string.service_waiting)
+            else localized.getString(R.string.service_connected,
+                current.count { it.transportConnected }, current.size)
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(text))
     }
 
     private fun loadDevices(): List<ProbeDevice> = preferences
@@ -140,14 +156,14 @@ class MultiBmsService : Service(), MultiBmsBleManager.Listener {
         getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID,
-                "BMS Multi Probe",
+                UiPreferences.wrap(this).getString(R.string.service_channel),
                 NotificationManager.IMPORTANCE_LOW,
             ),
         )
     }
 
     private fun notification(text: String): Notification = Notification.Builder(this, CHANNEL_ID)
-        .setContentTitle("BMS Multi Probe 0.3.7")
+        .setContentTitle(getString(R.string.app_name) + " " + getString(R.string.build_version))
         .setContentText(text)
         .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
         .setOngoing(true)
