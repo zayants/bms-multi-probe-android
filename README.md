@@ -12,15 +12,14 @@ monitoring systems.
 ## Download
 
 The current test build is available from the
-[v0.3.9-alpha.1 pre-release](https://github.com/zayants/bms-multi-probe-android/releases/tag/v0.3.9-alpha.1).
-It adds cell-voltage history charts with pinch zoom, horizontal scrolling
-and local six-month retention, plus English, Russian and Ukrainian UI
-resources and two themes.
+[v0.3.10-alpha.1 pre-release](https://github.com/zayants/bms-multi-probe-android/releases/tag/v0.3.10-alpha.1).
+It adds Android BLE permission diagnostics, storage reporting, numeric API
+aliases for monitoring graphs and a Duktape-compatible Zabbix 7 template.
 See [DESIGN.md](DESIGN.md) for customization and language-extension details.
 
-Тестовая версия **0.3.9-alpha.1** опубликована в разделе Releases. Добавлены
-графики истории напряжения всех ячеек, масштабирование, горизонтальная
-прокрутка и локальное хранение до шести месяцев, три языка и две темы.
+Тестовая версия **0.3.10-alpha.1** опубликована в разделе Releases. Добавлены
+диагностика BLE-разрешений, контроль локальной памяти, числовые поля API для
+графиков и совместимый с Duktape шаблон Zabbix 7.
 Инструкция по изменению дизайна и добавлению языков: [DESIGN.md](DESIGN.md).
 
 - Android 8.0 or newer;

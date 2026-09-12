@@ -1,4 +1,4 @@
-# BMS Multi Probe 0.3.10
+# BMS Multi Probe 0.3.10-alpha.1
 
 Experimental read-only Android monitor for up to four simultaneous JK/Jikong
 BMS connections with six dashboard slots.
@@ -12,7 +12,7 @@ Zabbix graphs. The bundled Zabbix template now uses those aliases and its
 discovery scripts are limited to Duktape-compatible ES5 syntax.
 
 BLE connection handling, GATT timeouts, reconnect behaviour and read-only BMS
-requests are unchanged. This build has not been uploaded or published.
+requests are unchanged. This is an experimental GitHub pre-release.
 
 ## New
 
