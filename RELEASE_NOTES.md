@@ -1,7 +1,18 @@
-# BMS Multi Probe 0.3.9-alpha.1
+# BMS Multi Probe 0.3.10
 
 Experimental read-only Android monitor for up to four simultaneous JK/Jikong
 BMS connections with six dashboard slots.
+
+This local test build adds BLE permission diagnostics and shortcuts to the
+relevant Android settings. It also displays the local history database size
+and free storage on the Setup screen.
+
+The API keeps its existing JSON booleans and adds numeric `1`/`0` aliases for
+Zabbix graphs. The bundled Zabbix template now uses those aliases and its
+discovery scripts are limited to Duktape-compatible ES5 syntax.
+
+BLE connection handling, GATT timeouts, reconnect behaviour and read-only BMS
+requests are unchanged. This build has not been uploaded or published.
 
 ## New
 

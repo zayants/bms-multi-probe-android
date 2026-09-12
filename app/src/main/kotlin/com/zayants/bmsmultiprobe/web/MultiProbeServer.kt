@@ -96,7 +96,7 @@ class MultiProbeServer(
         }
     }
 
-    private fun snapshotJson(): String {
+    internal fun snapshotJson(): String {
         val now = System.currentTimeMillis()
         val window = windowProvider()
         return JSONObject().apply {
@@ -117,9 +117,11 @@ class MultiProbeServer(
                         put("address", state.device.address)
                         put("status", state.status)
                         put("connected", state.transportConnected)
+                        put("connectedValue", if (state.transportConnected) 1 else 0)
                         put("packetCount", state.packetCount)
                         put("lastPacketAt", state.lastPacketAt ?: JSONObject.NULL)
                         put("stale", sample == null)
+                        put("staleValue", if (sample == null) 1 else 0)
                         put("sampleAgeMs", sample?.let { (now - it.timestamp).coerceAtLeast(0) } ?: JSONObject.NULL)
                         put("gattStatus", state.gattStatus ?: JSONObject.NULL)
                         if (sample != null) {
@@ -134,6 +136,7 @@ class MultiProbeServer(
                             put("alarms", JSONArray(sample.alarms))
                             put("alarmCount", sample.alarms.size)
                             put("hasAlarm", sample.alarms.isNotEmpty())
+                            put("hasAlarmValue", if (sample.alarms.isNotEmpty()) 1 else 0)
                             put("balancingState", sample.balancingState)
                         }
                     })

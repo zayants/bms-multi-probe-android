@@ -15,8 +15,8 @@ android {
         applicationId = "com.zayants.bmsmultiprobe"
         minSdk = 26
         targetSdk = 36
-        versionCode = 14
-        versionName = "0.3.9"
+        versionCode = 15
+        versionName = "0.3.10"
     }
 
     buildTypes {

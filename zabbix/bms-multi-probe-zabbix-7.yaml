@@ -14,7 +14,7 @@ zabbix_export:
         - name: Templates/Applications
       items:
         - uuid: 0d42772d0e2949b0a59da3b8cbfca07c
-          name: BMS Multi Probe: Raw snapshot
+          name: BMS Multi Probe - Raw snapshot
           type: HTTP_AGENT
           key: bms.multi.snapshot
           delay: 5s
@@ -129,9 +129,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.sessions[{#BMS.INDEX}].stale'
-                - type: BOOL_TO_DECIMAL
-                  parameters: []
+                    - '$.sessions[{#BMS.INDEX}].staleValue'
               master_item:
                 key: bms.multi.snapshot
             - uuid: 761d74bde6a2411f9840eeea30d7ec99
@@ -146,9 +144,7 @@ zabbix_export:
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$.sessions[{#BMS.INDEX}].connected'
-                - type: BOOL_TO_DECIMAL
-                  parameters: []
+                    - '$.sessions[{#BMS.INDEX}].connectedValue'
               master_item:
                 key: bms.multi.snapshot
             - uuid: 99ba2c63e5cc4f9c8a603d0b2185241e
@@ -195,11 +191,14 @@ zabbix_export:
             - type: JAVASCRIPT
               parameters:
                 - |
-                    const output = [];
-                    for (const session of JSON.parse(value).sessions || []) {
+                    var output = [];
+                    var sessions = JSON.parse(value).sessions || [];
+                    for (var i = 0; i < sessions.length; i++) {
+                      var session = sessions[i];
+                      var index = typeof session.index === 'number' ? session.index : i;
                       output.push({
-                        index: String(session.index),
-                        name: session.name || session.address || `BMS ${session.index + 1}`,
+                        index: String(index),
+                        name: session.name || session.address || ('BMS ' + (index + 1)),
                         address: session.address || ''
                       });
                     }
@@ -237,12 +236,16 @@ zabbix_export:
             - type: JAVASCRIPT
               parameters:
                 - |
-                    const output = [];
-                    for (const session of JSON.parse(value).sessions || []) {
-                      for (let i = 0; i < (session.cellsV || []).length; i++) {
+                    var output = [];
+                    var sessions = JSON.parse(value).sessions || [];
+                    for (var s = 0; s < sessions.length; s++) {
+                      var session = sessions[s];
+                      var index = typeof session.index === 'number' ? session.index : s;
+                      var cells = session.cellsV || [];
+                      for (var i = 0; i < cells.length; i++) {
                         output.push({
-                          index: String(session.index),
-                          name: session.name || session.address || `BMS ${session.index + 1}`,
+                          index: String(index),
+                          name: session.name || session.address || ('BMS ' + (index + 1)),
                           cellIndex: String(i),
                           cellNumber: String(i + 1)
                         });
@@ -284,12 +287,16 @@ zabbix_export:
             - type: JAVASCRIPT
               parameters:
                 - |
-                    const output = [];
-                    for (const session of JSON.parse(value).sessions || []) {
-                      for (let i = 0; i < (session.temperaturesC || []).length; i++) {
+                    var output = [];
+                    var sessions = JSON.parse(value).sessions || [];
+                    for (var s = 0; s < sessions.length; s++) {
+                      var session = sessions[s];
+                      var index = typeof session.index === 'number' ? session.index : s;
+                      var temperatures = session.temperaturesC || [];
+                      for (var i = 0; i < temperatures.length; i++) {
                         output.push({
-                          index: String(session.index),
-                          name: session.name || session.address || `BMS ${session.index + 1}`,
+                          index: String(index),
+                          name: session.name || session.address || ('BMS ' + (index + 1)),
                           tempIndex: String(i),
                           tempNumber: String(i + 1)
                         });

@@ -3,12 +3,15 @@ package com.zayants.bmsmultiprobe
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
+import android.bluetooth.BluetoothManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.location.LocationManager
+import android.net.Uri
 import android.text.TextUtils
 import com.zayants.bmsmultiprobe.ui.UiPreferences
 import com.zayants.bmsmultiprobe.ui.UiText
@@ -17,6 +20,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -32,6 +36,7 @@ import android.widget.TextView
 import com.zayants.bmsmultiprobe.model.ProbeDevice
 import com.zayants.bmsmultiprobe.model.ProbeSessionState
 import com.zayants.bmsmultiprobe.model.ProbeWindow
+import com.zayants.bmsmultiprobe.history.HistoryStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -45,12 +50,15 @@ class MainActivity : Activity(), MultiBmsService.Observer {
     private var scanned = emptyList<ProbeDevice>()
     private val scanOrder = mutableListOf<String>()
     private var scanActive = false
+    private var pendingScan = false
 
     private lateinit var scanButton: Button
     private lateinit var connectButton: Button
     private lateinit var disconnectButton: Button
     private lateinit var backButton: Button
     private lateinit var scanStatus: TextView
+    private lateinit var accessStatus: TextView
+    private lateinit var historyStatus: TextView
     private lateinit var deviceList: LinearLayout
     private lateinit var windowSummary: TextView
     private lateinit var sessionList: GridLayout
@@ -65,6 +73,10 @@ class MainActivity : Activity(), MultiBmsService.Observer {
             bound = true
             service?.refreshAppearance()
             service?.addObserver(this@MainActivity)
+            if (pendingScan) {
+                pendingScan = false
+                service?.scan()
+            }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -127,13 +139,17 @@ class MainActivity : Activity(), MultiBmsService.Observer {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSION_REQUEST && hasRequiredPermissions()) {
             startAndBindService()
+            refreshDiagnostics()
         } else {
+            pendingScan = false
             scanStatus.text = getString(R.string.permissions_required)
+            showPermissionHelp()
         }
     }
 
     override fun onScanChanged(devices: List<ProbeDevice>, scanning: Boolean) {
         runOnUiThread {
+            val finishedWithoutResults = scanActive && !scanning && devices.isEmpty()
             if (scanning && !scanActive) scanOrder.clear()
             scanActive = scanning
             devices.forEach { device ->
@@ -152,6 +168,7 @@ class MainActivity : Activity(), MultiBmsService.Observer {
             }
             scanButton.isEnabled = !scanning
             if (visibleListChanged) renderDevices()
+            if (finishedWithoutResults && setupPage.visibility == View.VISIBLE) showBleHelp()
         }
     }
 
@@ -199,7 +216,7 @@ class MainActivity : Activity(), MultiBmsService.Observer {
         })
 
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        scanButton = actionButton(getString(R.string.scan)) { service?.scan() }
+        scanButton = actionButton(getString(R.string.scan)) { startScanWithChecks() }
         connectButton = actionButton(if (selected.isEmpty()) getString(R.string.connect)
             else getString(R.string.connect_count, selected.size)) {
             if (selected.isEmpty()) {
@@ -229,11 +246,20 @@ class MainActivity : Activity(), MultiBmsService.Observer {
         setupRoot.addView(LinearLayout(this).apply {
             addView(actionButton(getString(R.string.language)) { chooseLanguage() }, weightParams())
             addView(actionButton(getString(R.string.theme)) { chooseTheme() }, weightParams())
+            addView(actionButton(getString(R.string.ble_access)) { showBleHelp() }, weightParams())
         })
 
         scanStatus = label(getString(R.string.scan_hint), 14f)
         scanStatus.setPadding(0, dp(12), 0, dp(8))
         setupRoot.addView(scanStatus)
+
+        accessStatus = label("", 12f)
+        accessStatus.setTextColor(getColor(R.color.ui_muted))
+        setupRoot.addView(accessStatus)
+        historyStatus = label("", 12f)
+        historyStatus.setTextColor(getColor(R.color.ui_muted))
+        historyStatus.setPadding(0, dp(2), 0, dp(6))
+        setupRoot.addView(historyStatus)
 
         deviceList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         setupRoot.addView(deviceList)
@@ -528,6 +554,7 @@ class MainActivity : Activity(), MultiBmsService.Observer {
     private fun showSetup() {
         dashboardPage.visibility = View.GONE
         setupPage.visibility = View.VISIBLE
+        refreshDiagnostics()
         applyImmersiveMode(false)
     }
 
@@ -563,6 +590,126 @@ class MainActivity : Activity(), MultiBmsService.Observer {
         } else {
             requestPermissions(requiredPermissions(), PERMISSION_REQUEST)
         }
+    }
+
+    private fun startScanWithChecks() {
+        if (!hasRequiredPermissions()) {
+            pendingScan = true
+            requestPermissions(requiredPermissions(), PERMISSION_REQUEST)
+            return
+        }
+        val bluetooth = getSystemService(BluetoothManager::class.java).adapter
+        if (bluetooth == null || !bluetooth.isEnabled) {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.bluetooth_off_title)
+                .setMessage(R.string.bluetooth_off_message)
+                .setPositiveButton(R.string.open_bluetooth_settings) { _, _ ->
+                    openSettings(Settings.ACTION_BLUETOOTH_SETTINGS)
+                }
+                .setNegativeButton(R.string.cancel, null)
+                .show()
+            return
+        }
+        if (Build.VERSION.SDK_INT <= 32 && !locationEnabled()) {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.location_off_title)
+                .setMessage(R.string.location_off_message)
+                .setPositiveButton(R.string.open_location_settings) { _, _ ->
+                    openSettings(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                }
+                .setNeutralButton(R.string.scan_anyway) { _, _ -> runScanWhenReady() }
+                .setNegativeButton(R.string.cancel, null)
+                .show()
+            return
+        }
+        runScanWhenReady()
+    }
+
+    private fun runScanWhenReady() {
+        service?.scan() ?: run {
+            pendingScan = true
+            startAndBindService()
+        }
+    }
+
+    private fun showPermissionHelp() {
+        if (isFinishing) return
+        AlertDialog.Builder(this)
+            .setTitle(R.string.permission_help_title)
+            .setMessage(R.string.permission_help_message)
+            .setPositiveButton(R.string.open_app_settings) { _, _ -> openAppSettings() }
+            .setNeutralButton(R.string.open_location_settings) { _, _ ->
+                openSettings(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun showBleHelp() {
+        if (isFinishing) return
+        AlertDialog.Builder(this)
+            .setTitle(R.string.scan_help_title)
+            .setMessage(R.string.scan_help_message)
+            .setPositiveButton(R.string.open_app_settings) { _, _ -> openAppSettings() }
+            .setNeutralButton(R.string.open_bluetooth_settings) { _, _ ->
+                openSettings(Settings.ACTION_BLUETOOTH_SETTINGS)
+            }
+            .setNegativeButton(R.string.open_location_settings) { _, _ ->
+                openSettings(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+            }
+            .show()
+    }
+
+    private fun openAppSettings() {
+        runCatching {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:$packageName")))
+        }.onFailure { openSettings(Settings.ACTION_SETTINGS) }
+    }
+
+    private fun openSettings(action: String) {
+        runCatching { startActivity(Intent(action)) }
+            .onFailure { runCatching { startActivity(Intent(Settings.ACTION_SETTINGS)) } }
+    }
+
+    private fun locationEnabled(): Boolean {
+        val manager = getSystemService(LocationManager::class.java)
+        return if (Build.VERSION.SDK_INT >= 28) manager.isLocationEnabled else {
+            Settings.Secure.getInt(contentResolver, Settings.Secure.LOCATION_MODE,
+                Settings.Secure.LOCATION_MODE_OFF) != Settings.Secure.LOCATION_MODE_OFF
+        }
+    }
+
+    @Suppress("MissingPermission")
+    private fun refreshDiagnostics() {
+        if (!::accessStatus.isInitialized || !::historyStatus.isInitialized) return
+        val missing = requiredPermissions().count {
+            checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
+        }
+        accessStatus.text = when {
+            missing > 0 -> getString(R.string.access_missing, missing)
+            getSystemService(BluetoothManager::class.java).adapter?.isEnabled != true ->
+                getString(R.string.access_bluetooth_off)
+            Build.VERSION.SDK_INT <= 32 && !locationEnabled() ->
+                getString(R.string.access_location_off)
+            else -> getString(R.string.access_ready)
+        }
+        val storage = HistoryStore.get(this).storageStats()
+        historyStatus.text = getString(R.string.history_storage,
+            formatBytes(storage.databaseBytes), formatBytes(storage.availableBytes))
+    }
+
+    private fun formatBytes(bytes: Long): String {
+        if (bytes < 0) return getString(R.string.storage_unknown)
+        val units = arrayOf("B", "KB", "MB", "GB")
+        var value = bytes.toDouble()
+        var unit = 0
+        while (value >= 1024.0 && unit < units.lastIndex) {
+            value /= 1024.0
+            unit++
+        }
+        return if (unit == 0) "${bytes} ${units[unit]}"
+        else String.format(Locale.getDefault(), "%.1f %s", value, units[unit])
     }
 
     private fun startAndBindService() {

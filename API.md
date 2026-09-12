@@ -45,9 +45,11 @@ v1 fields will remain compatible.
       "address": "AA:BB:CC:DD:EE:FF",
       "status": "telemetry",
       "connected": true,
+      "connectedValue": 1,
       "packetCount": 135,
       "lastPacketAt": 1788713583021,
       "stale": false,
+      "staleValue": 0,
       "sampleAgeMs": 196,
       "gattStatus": 0,
       "timestamp": 1788713583185,
@@ -61,6 +63,7 @@ v1 fields will remain compatible.
       "alarms": [],
       "alarmCount": 0,
       "hasAlarm": false,
+      "hasAlarmValue": 0,
       "balancingState": "off"
     }
   ]
@@ -74,10 +77,12 @@ milliseconds, respectively.
 | Field | Meaning |
 | --- | --- |
 | `sessions[].cellsV` | Individual cell voltages, in BMS order, volts. |
+| `connected` / `connectedValue` | The same BLE transport state as a JSON boolean and as numeric `1`/`0`. The numeric alias is convenient for Zabbix graphs. |
+| `stale` / `staleValue` | The same freshness state as a JSON boolean and as numeric `1`/`0`; `1` means stale. |
 | `socPercent` | State of charge reported by the BMS, percent. |
 | `temperaturesC` | All valid internal BMS temperature readings in JK frame order, °C. |
 | `temperatureC` | Maximum valid internal BMS temperature — convenient aggregate for a fast alert, °C. |
-| `alarms` / `alarmCount` / `hasAlarm` | Active protection and alarm states reported by JK telemetry. The list is empty when none are reported. |
+| `alarms` / `alarmCount` / `hasAlarm` / `hasAlarmValue` | Active protection and alarm states reported by JK telemetry. The numeric alias is `1` when at least one alarm is active. |
 | `balancingState` | `off`, `charging`, `discharging`, `unknown`, or `unavailable`. |
 | `packVoltageV`, `currentA`, `powerW` | Terminal measurements reported/calculated from BMS telemetry. Negative current/power means discharge in the current JK convention. |
 | `connected` | Current BLE transport state; this alone does not prove the data is current. |

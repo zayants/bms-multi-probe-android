@@ -2,6 +2,25 @@
 <resources>
     <string name="app_name">BMS Multi Probe</string>
     <string name="permissions_required">Нужны разрешения Bluetooth и геолокации</string>
+    <string name="ble_access">Доступ BLE</string>
+    <string name="permission_help_title">Нужен доступ к Bluetooth</string>
+    <string name="permission_help_message">Разрешите BMS Multi Probe доступ к устройствам поблизости и точному местоположению. На некоторых телефонах с Android 12 есть отдельный переключатель поиска устройств поблизости.</string>
+    <string name="scan_help_title">BLE-устройства не найдены</string>
+    <string name="scan_help_message">Проверьте разрешения приложения, настройки Bluetooth, системную геолокацию и отдельный переключатель поиска устройств поблизости, если он есть в прошивке. Официальное приложение JK должно быть закрыто.</string>
+    <string name="bluetooth_off_title">Bluetooth выключен</string>
+    <string name="bluetooth_off_message">Включите Bluetooth перед поиском BMS.</string>
+    <string name="location_off_title">Геолокация выключена</string>
+    <string name="location_off_message">Некоторые телефоны с Android 8–12 скрывают результаты BLE-поиска при выключенной системной геолокации. Можно открыть настройки или всё равно запустить поиск.</string>
+    <string name="open_app_settings">Разрешения приложения</string>
+    <string name="open_location_settings">Настройки геолокации</string>
+    <string name="open_bluetooth_settings">Настройки Bluetooth</string>
+    <string name="scan_anyway">Всё равно искать</string>
+    <string name="access_ready">Проверка BLE: разрешения, Bluetooth и геолокация готовы</string>
+    <string name="access_missing">Проверка BLE: не хватает разрешений — %1$d</string>
+    <string name="access_bluetooth_off">Проверка BLE: Bluetooth выключен</string>
+    <string name="access_location_off">Проверка BLE: геолокация выключена; телефон может скрывать устройства</string>
+    <string name="history_storage">Локальная история: %1$s · свободно: %2$s</string>
+    <string name="storage_unknown">неизвестно</string>
     <string name="scan_hint">Начните поиск и выберите до 4 BMS</string>
     <string name="scanning">Поиск · найдено %1$d · выбрано %2$d/4</string>
     <string name="found_selected">Найдено %1$d · выбрано %2$d/4</string>

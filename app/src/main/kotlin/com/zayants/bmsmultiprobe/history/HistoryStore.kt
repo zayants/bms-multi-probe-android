@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import android.os.StatFs
 import com.zayants.bmsmultiprobe.model.ProbeWindow
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -17,6 +18,7 @@ import java.util.concurrent.TimeUnit
  * A bounded writer queue prevents disk problems from blocking BLE or growing memory. */
 class HistoryStore private constructor(context: Context) :
     SQLiteOpenHelper(context.applicationContext, "cell-history.db", null, 1) {
+    private val appContext = context.applicationContext
     private val writer = ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS,
         ArrayBlockingQueue<Runnable>(16), { job -> Thread(job, "bms-history-writer") })
     @Volatile var recordingFailed = false; private set
@@ -79,6 +81,9 @@ class HistoryStore private constructor(context: Context) :
                     if (now - lastCleanup >= 3_600_000L || now < lastCleanup) {
                         db.delete("raw", "t<?", arrayOf((now - HistoryPolicy.DAY).toString()))
                         db.delete("minute", "t<?", arrayOf(HistoryPolicy.cutoff(now).toString()))
+                        // Keep the WAL bounded after hourly retention work. This is passive and
+                        // does not stop the BLE/main thread or force a full database vacuum.
+                        db.rawQuery("PRAGMA wal_checkpoint(PASSIVE)", null).use { it.moveToFirst() }
                         lastCleanup = now
                     }
                     recordingFailed = false
@@ -90,6 +95,15 @@ class HistoryStore private constructor(context: Context) :
     }
 
     data class Result(val points: List<HistoryPoint>, val minuteResolution: Boolean)
+    data class StorageStats(val databaseBytes: Long, val availableBytes: Long)
+
+    fun storageStats(): StorageStats {
+        val database = appContext.getDatabasePath("cell-history.db")
+        val bytes = listOf(database, java.io.File(database.path + "-wal"), java.io.File(database.path + "-shm"))
+            .sumOf { file -> if (file.isFile) file.length() else 0L }
+        val available = runCatching { StatFs(appContext.filesDir.path).availableBytes }.getOrDefault(-1L)
+        return StorageStats(bytes, available)
+    }
 
     /** Separate reader thread + WAL let writes continue during a long-range query.
      * Cancellation is checked while streaming so obsolete gesture queries are cheap to drop. */

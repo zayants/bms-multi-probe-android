@@ -2,6 +2,25 @@
 <resources>
     <string name="app_name">BMS Multi Probe</string>
     <string name="permissions_required">Bluetooth and location permissions are required</string>
+    <string name="ble_access">BLE access</string>
+    <string name="permission_help_title">Bluetooth access required</string>
+    <string name="permission_help_message">Allow Nearby devices and precise location for BMS Multi Probe. Some Android 12 phones also have a separate Nearby device scanning switch.</string>
+    <string name="scan_help_title">No BLE devices found</string>
+    <string name="scan_help_message">Check the app permissions, Bluetooth settings, system Location switch and any manufacturer-specific Nearby device scanning option. The official JK app must be closed.</string>
+    <string name="bluetooth_off_title">Bluetooth is off</string>
+    <string name="bluetooth_off_message">Turn on Bluetooth before scanning for BMS devices.</string>
+    <string name="location_off_title">Location is off</string>
+    <string name="location_off_message">Some Android 8–12 phones suppress BLE scan results while system Location is off. You can open Location settings or try scanning anyway.</string>
+    <string name="open_app_settings">App permissions</string>
+    <string name="open_location_settings">Location settings</string>
+    <string name="open_bluetooth_settings">Bluetooth settings</string>
+    <string name="scan_anyway">Scan anyway</string>
+    <string name="access_ready">BLE check: permissions, Bluetooth and Location are ready</string>
+    <string name="access_missing">BLE check: %1$d permission(s) missing</string>
+    <string name="access_bluetooth_off">BLE check: Bluetooth is off</string>
+    <string name="access_location_off">BLE check: system Location is off; some phones may hide devices</string>
+    <string name="history_storage">Local history: %1$s · free storage: %2$s</string>
+    <string name="storage_unknown">unknown</string>
     <string name="scan_hint">Start a scan and select up to 4 BMS devices</string>
     <string name="scanning">Scanning · found %1$d · selected %2$d/4</string>
     <string name="found_selected">Found %1$d · selected %2$d/4</string>

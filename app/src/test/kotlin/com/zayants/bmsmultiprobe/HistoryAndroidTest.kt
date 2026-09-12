@@ -48,6 +48,11 @@ class HistoryAndroidTest {
             store.record(window(now - 5_000, device = "AA:BB:CC:DD:EE:02", voltage = 3.5f))
             flush(store)
             assertFalse(store.recordingFailed)
+            val storage = store.storageStats()
+            assertTrue(storage.databaseBytes > 0)
+            // Robolectric may report zero for its virtual filesystem; a real device
+            // supplies the actual StatFs value. The API must still return a value.
+            assertTrue(storage.availableBytes >= 0)
             val result = store.query("AA:BB:CC:DD:EE:01", now - 60_000, now)
             assertFalse(result.minuteResolution)
             assertEquals(2, result.points.sumOf { it.count })

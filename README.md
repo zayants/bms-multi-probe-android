@@ -55,6 +55,11 @@ Connections remain open between samples to avoid repeated disconnects and BMS
 beeps. An unexpected disconnect uses the existing GATT client with bounded
 reconnect backoff.
 
+The Setup screen reports BLE permission readiness, local history database size
+and currently available storage. If Android blocks scanning, the BLE access
+dialog opens the relevant app, Bluetooth or Location settings. Manufacturer
+specific hidden scanning switches cannot be changed by the app itself.
+
 ## Local HTTP API
 
 The Setup screen displays the phone's LAN address. From another device on the
